@@ -22,6 +22,9 @@ class Plugin {
 		$this->drive_api    = new DriveAPI( $this->oauth );
 		$this->rest_api     = new RestAPI( $this->oauth, $this->drive_api, $this->file_manager );
 		$this->admin        = new Admin( $this->oauth );
+
+		// Background upload processor (WP-Cron).
+		add_action( 'wp_drive_process_job', [ DriveAPI::class, 'run_job_cron' ] );
 	}
 
 	public static function get_instance(): self {

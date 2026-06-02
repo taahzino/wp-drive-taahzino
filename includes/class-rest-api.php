@@ -89,9 +89,9 @@ class RestAPI {
 			'permission_callback' => $auth,
 		] );
 
-		register_rest_route( self::NS, '/drive/upload/step', [
-			'methods'             => 'POST',
-			'callback'            => [ $this, 'upload_step' ],
+		register_rest_route( self::NS, '/drive/upload/(?P<job_id>[a-f0-9\-]+)/status', [
+			'methods'             => 'GET',
+			'callback'            => [ $this, 'upload_status' ],
 			'permission_callback' => $auth,
 			'args'                => [
 				'job_id' => [ 'required' => true, 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field' ],
@@ -277,25 +277,43 @@ class RestAPI {
 			'items'                 => $job_items,
 			'total'                 => count( array_filter( $job_items, fn( $i ) => $i['type'] === 'file' ) ),
 			'completed'             => 0,
-			'status'                => 'running',
+			'status'                => 'pending',
 			'created_at'            => time(),
 		];
 
 		set_transient( 'wp_drive_job_' . $job_id, $job, HOUR_IN_SECONDS );
 
+		// Schedule background processing via WP-Cron so no HTTP request times out.
+		wp_schedule_single_event( time() - 1, 'wp_drive_process_job', [ $job_id ] );
+
+		// Spawn cron immediately (non-blocking request to wp-cron.php on localhost).
+		spawn_cron();
+
 		return new \WP_REST_Response( [
 			'job_id' => $job_id,
 			'total'  => $job['total'],
-			'status' => 'running',
+			'status' => 'pending',
 		] );
 	}
 
 	/**
-	 * Processes the next pending item in a job (one item per call).
-	 *
-	 * Body: { job_id: '...' }
+	 * Returns the current status of an upload job (lightweight transient read).
 	 */
-	public function upload_step( \WP_REST_Request $req ): \WP_REST_Response {
+	public function upload_status( \WP_REST_Request $req ): \WP_REST_Response {
+		$job_id = $req->get_param( 'job_id' );
+		$job    = get_transient( 'wp_drive_job_' . $job_id );
+
+		if ( ! $job ) {
+			return $this->error( 'job_not_found', 'Upload job not found or expired.', 404 );
+		}
+
+		return new \WP_REST_Response( $this->job_summary( $job ) );
+	}
+
+	/**
+	 * @deprecated Kept for reference only — processing is now done by WP-Cron via run_job_cron().
+	 */
+	private function upload_step_legacy( \WP_REST_Request $req ): \WP_REST_Response {
 		$job_id = $req->get_param( 'job_id' );
 		$job    = get_transient( 'wp_drive_job_' . $job_id );
 

@@ -197,6 +197,7 @@
     setLoading(uploadHereBtn, true);
 
     try {
+      // /start schedules a WP-Cron job and returns immediately — no timeout risk.
       const data = await apiFetch('POST', '/drive/upload/start', {
         items: selectedItems.map(i => ({ path: i.path, type: i.type })),
         destination_folder_id: destFolder.id,
@@ -204,7 +205,9 @@
 
       currentJobId = data.job_id;
       updateProgressMaster(0, data.total || 0, 0);
-      pollNextStep();
+
+      // Begin polling the lightweight /status endpoint.
+      pollTimer = setTimeout(pollStatus, 1500);
     } catch (err) {
       showUploadError(err.message);
       isUploading = false;
@@ -212,10 +215,15 @@
     }
   }
 
-  async function pollNextStep() {
+  /**
+   * Polls GET /drive/upload/{job_id}/status every 2 seconds.
+   * The actual upload runs in a WP-Cron background job — this endpoint
+   * simply reads the transient, so it always returns in <100 ms.
+   */
+  async function pollStatus() {
     if (!currentJobId) return;
     try {
-      const data = await apiFetch('POST', '/drive/upload/step', { job_id: currentJobId });
+      const data = await apiFetch('GET', '/drive/upload/' + currentJobId + '/status');
       updateProgressMaster(data.completed || 0, data.total || 0, data.percent || 0);
       updateProgressFiles(data);
 
@@ -224,9 +232,11 @@
         showUploadComplete(data);
         return;
       }
-      // Continue stepping immediately (no delay — each step is one file).
-      pollTimer = setTimeout(pollNextStep, 100);
+
+      // Keep polling — job is pending or running.
+      pollTimer = setTimeout(pollStatus, 2000);
     } catch (err) {
+      // On 404 (job expired) or network error, stop and show error.
       stopPolling();
       showUploadError(err.message);
     }

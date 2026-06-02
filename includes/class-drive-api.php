@@ -169,6 +169,78 @@ class DriveAPI {
 	}
 
 	// -------------------------------------------------------------------------
+	// Background upload processor (called by WP-Cron)
+	// -------------------------------------------------------------------------
+
+	/**
+	 * Processes an entire upload job in the background.
+	 * Called by WP-Cron — runs without any HTTP timeout constraints.
+	 *
+	 * @param string $job_id
+	 */
+	public static function run_job_cron( string $job_id ): void {
+		$job = get_transient( 'wp_drive_job_' . $job_id );
+		if ( ! $job ) {
+			return;
+		}
+
+		// Prevent timeouts — we own this process.
+		if ( function_exists( 'set_time_limit' ) ) {
+			set_time_limit( 0 );
+		}
+		ignore_user_abort( true );
+
+		$instance = new self( Plugin::get_instance()->oauth );
+
+		$job['status'] = 'running';
+		set_transient( 'wp_drive_job_' . $job_id, $job, HOUR_IN_SECONDS );
+
+		foreach ( $job['items'] as &$item ) {
+			if ( 'pending' !== $item['status'] ) {
+				continue;
+			}
+
+			$item['status'] = 'running';
+			set_transient( 'wp_drive_job_' . $job_id, $job, HOUR_IN_SECONDS );
+
+			try {
+				if ( 'create_folder' === $item['type'] ) {
+					$drive_id     = $instance->create_folder( $item['name'], $item['parent_id'] );
+					$item['drive_id'] = $drive_id;
+					$item['status']   = 'done';
+
+					// Propagate the new folder ID to children waiting on this folder.
+					foreach ( $job['items'] as &$other ) {
+						if ( isset( $other['parent_ref'] ) && $other['parent_ref'] === $item['rel'] ) {
+							$other['parent_id'] = $drive_id;
+						}
+					}
+					unset( $other );
+				} else {
+					$drive_id         = $instance->upload_file( $item['abs'], $item['parent_id'], $item['name'] );
+					$item['drive_id'] = $drive_id;
+					$item['status']   = 'done';
+					$job['completed'] ++;
+				}
+			} catch ( \Exception $e ) {
+				$item['status'] = 'failed';
+				$item['error']  = $e->getMessage();
+				error_log( 'WP Drive upload error [' . $item['name'] . ']: ' . $e->getMessage() );
+				if ( 'file' === $item['type'] ) {
+					$job['completed'] ++;
+				}
+			}
+
+			// Persist progress after every item.
+			set_transient( 'wp_drive_job_' . $job_id, $job, HOUR_IN_SECONDS );
+		}
+		unset( $item );
+
+		$job['status'] = 'done';
+		set_transient( 'wp_drive_job_' . $job_id, $job, HOUR_IN_SECONDS );
+	}
+
+	// -------------------------------------------------------------------------
 	// Helpers
 	// -------------------------------------------------------------------------
 
