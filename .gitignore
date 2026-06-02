@@ -1,0 +1,5 @@
+vendor/
+*.log
+google-credentials.json
+.DS_Store
+node_modules/

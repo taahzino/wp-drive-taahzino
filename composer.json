@@ -1,0 +1,34 @@
+{
+  "name": "taahzino/wp-drive-taahzino",
+  "description": "WordPress plugin to browse and upload local files to Google Drive with a live progress bar.",
+  "type": "wordpress-plugin",
+  "license": "GPL-2.0-or-later",
+  "require": {
+    "php": ">=7.4",
+    "google/apiclient": "^2.15"
+  },
+  "autoload": {
+    "classmap": ["includes/"]
+  },
+  "config": {
+    "optimize-autoloader": true,
+    "sort-packages": true,
+    "allow-plugins": {
+      "google/apiclient-services": true
+    }
+  },
+  "scripts": {
+    "post-update-cmd": [
+      "Google\\Task\\Composer::cleanup"
+    ],
+    "post-install-cmd": [
+      "Google\\Task\\Composer::cleanup"
+    ]
+  },
+  "extra": {
+    "google/apiclient-services": [
+      "Drive",
+      "Oauth2"
+    ]
+  }
+}
