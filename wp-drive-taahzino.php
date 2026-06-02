@@ -4,8 +4,8 @@
  * Plugin URI:        https://github.com/taahzino/wp-drive-taahzino
  * Description:       Connect your WordPress site to Google Drive. Browse your uploads, select files or folders, and upload them directly to your Drive — with a live progress bar.
  * Version:           1.0.0
- * Author:            taahzino
- * Author URI:        https://github.com/taahzino
+ * Author:            Tahsin Ahmed (@taahzino)
+ * Author URI:        https://taahzino.com
  * License:           GPL-2.0-or-later
  * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain:       wp-drive-taahzino
@@ -48,7 +48,39 @@ register_activation_hook( __FILE__, function () {
 	}
 } );
 
-register_deactivation_hook( __FILE__, function () {
-	flush_rewrite_rules();
+register_deactivation_hook( __FILE__, 'wp_drive_purge_all_data' );
+
+/**
+ * Wipes every trace of the plugin from the database.
+ * Called on deactivation. The user confirms via a JS modal before the
+ * deactivation link is followed.
+ */
+function wp_drive_purge_all_data(): void {
+	global $wpdb;
+
+	// All wp_options rows owned by this plugin.
+	$options = [
+		'wp_drive_tokens',
+		'wp_drive_client_id',
+		'wp_drive_client_secret_enc',
+		'wp_drive_redirect_uri_override',
+		'wp_drive_wizard_completed',
+	];
+	foreach ( $options as $opt ) {
+		delete_option( $opt );
+	}
+
+	// All transients whose key starts with "wp_drive_" (OAuth states + upload jobs).
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery
+	$wpdb->query(
+		"DELETE FROM {$wpdb->options}
+		 WHERE option_name LIKE '_transient_wp_drive_%'
+		    OR option_name LIKE '_transient_timeout_wp_drive_%'"
+	);
+
+	// Unschedule all plugin cron hooks.
+	wp_clear_scheduled_hook( 'wp_drive_process_job' );
 	wp_clear_scheduled_hook( 'wp_drive_upload_cron' );
-} );
+
+	flush_rewrite_rules();
+}

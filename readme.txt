@@ -45,10 +45,6 @@ See the plugin's DEV-SETUP guide for full Google Cloud Console setup instruction
 
 == Frequently Asked Questions ==
 
-= What Google permissions does this plugin request? =
-
-Only `drive.file` — access limited to files the plugin itself uploads. It cannot read pre-existing files on your Drive.
-
 = Is my Client Secret safe? =
 
 Yes. The Client Secret and OAuth tokens are encrypted with AES-256-CBC using your WordPress `SECURE_AUTH_KEY` before storage. They are never sent to the browser.
@@ -65,8 +61,3 @@ Not in v1.0. Only personal Drive is supported.
 
 = 1.0.0 =
 * Initial release.
-
-== Upgrade Notice ==
-
-= 1.0.0 =
-Initial release.

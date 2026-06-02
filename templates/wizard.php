@@ -140,10 +140,33 @@ $progress_pct   = round( ( ( $current_step - 1 ) / ( $total_steps - 1 ) ) * 100 
               <strong><?php esc_html_e( 'APIs &amp; Services → OAuth consent screen', 'wp-drive-taahzino' ); ?></strong>
               <?php esc_html_e( '. Choose ', 'wp-drive-taahzino' ); ?>
               <strong><?php esc_html_e( 'External', 'wp-drive-taahzino' ); ?></strong>
-              <?php esc_html_e( ', fill in app name, and add scope: ', 'wp-drive-taahzino' ); ?>
-              <code>.../auth/drive.file</code>.
-              <?php esc_html_e( ' Add your Google account under Test Users.', 'wp-drive-taahzino' ); ?>
+              <?php esc_html_e( ', fill in an App name (e.g. "WP Drive"), your Support email, and your Developer email. Under Scopes add ', 'wp-drive-taahzino' ); ?>
+              <code>https://www.googleapis.com/auth/drive</code>
+              <?php esc_html_e( '. Under Test Users, add the Google account you will use for authorization.', 'wp-drive-taahzino' ); ?>
             </p>
+          </div>
+        </li>
+        <li class="wpd-setup-step">
+          <div class="wpd-setup-step-content">
+            <strong><?php esc_html_e( 'Publish the App', 'wp-drive-taahzino' ); ?></strong>
+            <p>
+              <?php esc_html_e( 'Still on the OAuth consent screen page, scroll down to the ', 'wp-drive-taahzino' ); ?>
+              <strong><?php esc_html_e( 'Publishing status', 'wp-drive-taahzino' ); ?></strong>
+              <?php esc_html_e( ' section and click ', 'wp-drive-taahzino' ); ?>
+              <strong><?php esc_html_e( 'Publish App → Confirm', 'wp-drive-taahzino' ); ?></strong>.
+            </p>
+            <div class="wpd-callout wpd-callout-warning" style="margin-top:10px;">
+              <span class="wpd-callout-icon">&#9888;&#65039;</span>
+              <div>
+                <strong><?php esc_html_e( 'Why this matters', 'wp-drive-taahzino' ); ?></strong><br>
+                <?php esc_html_e( 'While the app is in ', 'wp-drive-taahzino' ); ?>
+                <strong><?php esc_html_e( 'Testing', 'wp-drive-taahzino' ); ?></strong>
+                <?php esc_html_e( ' mode, Google tokens expire every 7 days, forcing you to re-authorize weekly. Publishing removes this limit.', 'wp-drive-taahzino' ); ?><br><br>
+                <?php esc_html_e( 'Because the Drive scope is sensitive, Google will show an "unverified app" warning screen when you connect — this is normal for personal/internal apps. Click ', 'wp-drive-taahzino' ); ?>
+                <strong><?php esc_html_e( 'Advanced → Go to [App Name] (unsafe)', 'wp-drive-taahzino' ); ?></strong>
+                <?php esc_html_e( ' to proceed. Formal Google verification is only required if you plan to distribute this plugin publicly.', 'wp-drive-taahzino' ); ?>
+              </div>
+            </div>
           </div>
         </li>
         <li class="wpd-setup-step">
@@ -194,7 +217,7 @@ $progress_pct   = round( ( ( $current_step - 1 ) / ( $total_steps - 1 ) ) * 100 
 
       <label class="wpd-checkbox-confirm" id="wpdGcpConfirm">
         <input type="checkbox" id="wpdGcpCheckbox">
-        <span><?php esc_html_e( "I've completed the Google Cloud setup above", 'wp-drive-taahzino' ); ?></span>
+        <span><?php esc_html_e( "I've completed the Google Cloud setup and published the app", 'wp-drive-taahzino' ); ?></span>
       </label>
     </div>
 
