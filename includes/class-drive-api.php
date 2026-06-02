@@ -103,15 +103,19 @@ class DriveAPI {
 	// -------------------------------------------------------------------------
 
 	/**
-	 * Uploads a single local file to Google Drive using resumable upload.
+	 * Uploads a single local file to Google Drive.
 	 *
-	 * @param string   $abs_path  Absolute local file path.
-	 * @param string   $parent_id Destination Drive folder ID.
-	 * @param string   $name      File name on Drive (defaults to basename).
-	 * @return string  Uploaded Drive file ID.
+	 * Files > 5 MB use resumable upload (chunked). Files ≤ 5 MB use multipart upload.
+	 * An optional progress callback is called after each chunk with (bytes_sent, total_bytes).
+	 *
+	 * @param string        $abs_path      Absolute local file path.
+	 * @param string        $parent_id     Destination Drive folder ID.
+	 * @param string        $name          File name on Drive (defaults to basename).
+	 * @param callable|null $on_progress   fn(int $bytes_sent, int $total_bytes): void
+	 * @return string Uploaded Drive file ID.
 	 * @throws \RuntimeException On API error or missing file.
 	 */
-	public function upload_file( string $abs_path, string $parent_id, string $name = '' ): string {
+	public function upload_file( string $abs_path, string $parent_id, string $name = '', ?callable $on_progress = null ): string {
 		if ( ! is_readable( $abs_path ) ) {
 			throw new \RuntimeException( "File not readable: {$abs_path}" );
 		}
@@ -129,7 +133,7 @@ class DriveAPI {
 
 		try {
 			if ( $file_size > 5 * 1024 * 1024 ) {
-				// Resumable upload for files larger than 5 MB.
+				// Resumable upload: stream in 5 MB chunks so we can report progress.
 				$client->setDefer( true );
 				$request = $service->files->create( $meta, [
 					'uploadType' => 'resumable',
@@ -141,11 +145,18 @@ class DriveAPI {
 				$media->setFileSize( $file_size );
 				$client->setDefer( false );
 
-				$status = false;
-				$handle = fopen( $abs_path, 'rb' );
+				$status     = false;
+				$bytes_sent = 0;
+				$handle     = fopen( $abs_path, 'rb' );
+
 				while ( ! $status && ! feof( $handle ) ) {
-					$chunk  = fread( $handle, $chunk_size );
-					$status = $media->nextChunk( $chunk );
+					$chunk       = fread( $handle, $chunk_size );
+					$status      = $media->nextChunk( $chunk );
+					$bytes_sent += strlen( $chunk );
+
+					if ( $on_progress ) {
+						$on_progress( $bytes_sent, $file_size );
+					}
 				}
 				fclose( $handle );
 
@@ -154,13 +165,19 @@ class DriveAPI {
 				}
 				throw new \RuntimeException( 'Resumable upload did not complete.' );
 			} else {
-				// Multipart upload for small files.
+				// Multipart upload for small files — single request, no chunk progress.
+				if ( $on_progress ) {
+					$on_progress( 0, $file_size ); // signal: started.
+				}
 				$result = $service->files->create( $meta, [
 					'data'       => file_get_contents( $abs_path ),
 					'mimeType'   => $mime_type,
 					'uploadType' => 'multipart',
 					'fields'     => 'id',
 				] );
+				if ( $on_progress ) {
+					$on_progress( $file_size, $file_size ); // signal: done.
+				}
 				return $result->getId();
 			}
 		} catch ( \Exception $e ) {
@@ -205,7 +222,7 @@ class DriveAPI {
 
 			try {
 				if ( 'create_folder' === $item['type'] ) {
-					$drive_id     = $instance->create_folder( $item['name'], $item['parent_id'] );
+					$drive_id         = $instance->create_folder( $item['name'], $item['parent_id'] );
 					$item['drive_id'] = $drive_id;
 					$item['status']   = 'done';
 
@@ -216,11 +233,31 @@ class DriveAPI {
 						}
 					}
 					unset( $other );
+
+					set_transient( 'wp_drive_job_' . $job_id, $job, HOUR_IN_SECONDS );
 				} else {
-					$drive_id         = $instance->upload_file( $item['abs'], $item['parent_id'], $item['name'] );
-					$item['drive_id'] = $drive_id;
-					$item['status']   = 'done';
+					// Upload with a per-chunk progress callback that saves to the transient.
+					$drive_id = $instance->upload_file(
+						$item['abs'],
+						$item['parent_id'],
+						$item['name'],
+						static function ( int $bytes_sent, int $total_bytes ) use ( $job_id, &$job, &$item ): void {
+							$item['bytes_sent']  = $bytes_sent;
+							$item['total_bytes'] = $total_bytes;
+							// Throttle: save at most once per ~0.5 s to avoid hammering the DB.
+							static $last_save = 0;
+							$now = microtime( true );
+							if ( $now - $last_save >= 0.5 || $bytes_sent === $total_bytes ) {
+								set_transient( 'wp_drive_job_' . $job_id, $job, HOUR_IN_SECONDS );
+								$last_save = $now;
+							}
+						}
+					);
+					$item['drive_id']    = $drive_id;
+					$item['status']      = 'done';
+					$item['bytes_sent']  = $item['total_bytes'] ?? 0;
 					$job['completed'] ++;
+					set_transient( 'wp_drive_job_' . $job_id, $job, HOUR_IN_SECONDS );
 				}
 			} catch ( \Exception $e ) {
 				$item['status'] = 'failed';
@@ -229,10 +266,8 @@ class DriveAPI {
 				if ( 'file' === $item['type'] ) {
 					$job['completed'] ++;
 				}
+				set_transient( 'wp_drive_job_' . $job_id, $job, HOUR_IN_SECONDS );
 			}
-
-			// Persist progress after every item.
-			set_transient( 'wp_drive_job_' . $job_id, $job, HOUR_IN_SECONDS );
 		}
 		unset( $item );
 

@@ -633,7 +633,37 @@
   height: 100%;
   background: linear-gradient(90deg, #4f46e5, #818cf8);
   border-radius: 999px;
-  transition: width .4s cubic-bezier(.4,0,.2,1);
+  transition: width .6s cubic-bezier(.4,0,.2,1);
+}
+
+/* Animated shimmer overlay while upload is in progress */
+.wpd-progress-bar-animated {
+  position: relative;
+  overflow: hidden;
+}
+
+.wpd-progress-bar-animated::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,.35) 50%, transparent 100%);
+  animation: wpd-shimmer 1.4s infinite;
+}
+
+@keyframes wpd-shimmer {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(200%); }
+}
+
+.wpd-progress-current-file {
+  font-size: 12px;
+  color: #4f46e5;
+  font-weight: 500;
+  min-height: 18px;
+  margin-bottom: 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .wpd-progress-meta {

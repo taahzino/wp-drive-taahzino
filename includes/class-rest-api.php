@@ -474,24 +474,53 @@ class RestAPI {
 			array_map( fn( $i ) => ! empty( $i['error'] ) ? [ 'name' => $i['name'], 'error' => $i['error'] ] : null, $job['items'] )
 		) );
 
-		// Include per-file status for frontend progress rows.
+		// Per-file status summary (file-type items only).
 		$items_summary = array_values( array_map( static function ( array $i ): array {
-			return [
+			$entry = [
 				'type'   => $i['type'],
 				'name'   => $i['name'],
 				'status' => $i['status'],
 				'error'  => $i['error'] ?? null,
 			];
+			// Include byte progress for running files so the frontend can show a sub-bar.
+			if ( 'file' === $i['type'] && isset( $i['bytes_sent'], $i['total_bytes'] ) && $i['total_bytes'] > 0 ) {
+				$entry['bytes_sent']  = (int) $i['bytes_sent'];
+				$entry['total_bytes'] = (int) $i['total_bytes'];
+				$entry['file_pct']    = (int) round( ( $i['bytes_sent'] / $i['total_bytes'] ) * 100 );
+			}
+			return $entry;
 		}, $job['items'] ) );
 
+		// Smooth overall percent: count completed files + fractional progress of current file.
+		$total     = (int) $job['total'];
+		$completed = (int) $job['completed'];
+		$current_fraction = 0.0;
+		$current_file     = null;
+
+		foreach ( $job['items'] as $i ) {
+			if ( 'file' !== $i['type'] || 'running' !== $i['status'] ) {
+				continue;
+			}
+			$current_file = $i['name'];
+			if ( isset( $i['bytes_sent'], $i['total_bytes'] ) && $i['total_bytes'] > 0 ) {
+				$current_fraction = (float) $i['bytes_sent'] / (float) $i['total_bytes'];
+			}
+			break;
+		}
+
+		$percent = $total > 0
+			? (int) round( ( ( $completed + $current_fraction ) / $total ) * 100 )
+			: 0;
+
 		return [
-			'job_id'    => $job['job_id'],
-			'status'    => $job['status'],
-			'total'     => $job['total'],
-			'completed' => $job['completed'],
-			'percent'   => $job['total'] > 0 ? (int) round( ( $job['completed'] / $job['total'] ) * 100 ) : 0,
-			'errors'    => $errors,
-			'items'     => $items_summary,
+			'job_id'       => $job['job_id'],
+			'status'       => $job['status'],
+			'total'        => $total,
+			'completed'    => $completed,
+			'percent'      => min( 99, $percent ), // Never show 100% until status === 'done'.
+			'current_file' => $current_file,
+			'errors'       => $errors,
+			'items'        => $items_summary,
 		];
 	}
 

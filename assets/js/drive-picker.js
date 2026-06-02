@@ -216,7 +216,7 @@
   }
 
   /**
-   * Polls GET /drive/upload/{job_id}/status every 2 seconds.
+   * Polls GET /drive/upload/{job_id}/status every 800 ms.
    * The actual upload runs in a WP-Cron background job — this endpoint
    * simply reads the transient, so it always returns in <100 ms.
    */
@@ -224,7 +224,12 @@
     if (!currentJobId) return;
     try {
       const data = await apiFetch('GET', '/drive/upload/' + currentJobId + '/status');
-      updateProgressMaster(data.completed || 0, data.total || 0, data.percent || 0);
+
+      const percent   = data.status === 'done' ? 100 : (data.percent || 0);
+      const completed = data.completed || 0;
+      const total     = data.total || 0;
+
+      updateProgressMaster(completed, total, percent, data.current_file || null);
       updateProgressFiles(data);
 
       if (data.status === 'done' || data.status === 'failed') {
@@ -234,7 +239,7 @@
       }
 
       // Keep polling — job is pending or running.
-      pollTimer = setTimeout(pollStatus, 2000);
+      pollTimer = setTimeout(pollStatus, 800);
     } catch (err) {
       // On 404 (job expired) or network error, stop and show error.
       stopPolling();
@@ -266,12 +271,13 @@
             <span class="wpd-mini-spinner"></span>
             Uploading to <strong>${esc(dest.name)}</strong>
           </div>
+          <div class="wpd-progress-current-file" id="wpdProgressCurrentFile"></div>
           <div class="wpd-progress-master">
             <div class="wpd-progress-bar-bg">
-              <div class="wpd-progress-bar-fill" id="wpdMasterBar" style="width:0%"></div>
+              <div class="wpd-progress-bar-fill wpd-progress-bar-animated" id="wpdMasterBar" style="width:0%"></div>
             </div>
             <div class="wpd-progress-meta">
-              <span id="wpdProgressLabel">Preparing…</span>
+              <span id="wpdProgressLabel">Waiting for background job…</span>
               <span id="wpdProgressPct">0%</span>
             </div>
           </div>
@@ -290,13 +296,27 @@
     pickerFooter.style.display = 'none';
   }
 
-  function updateProgressMaster(completed, total, percent) {
-    const bar   = document.getElementById('wpdMasterBar');
-    const label = document.getElementById('wpdProgressLabel');
-    const pct   = document.getElementById('wpdProgressPct');
+  function updateProgressMaster(completed, total, percent, currentFile) {
+    const bar       = document.getElementById('wpdMasterBar');
+    const label     = document.getElementById('wpdProgressLabel');
+    const pct       = document.getElementById('wpdProgressPct');
+    const titleEl   = document.getElementById('wpdProgressCurrentFile');
+
     if (bar)   bar.style.width = percent + '%';
-    if (label) label.textContent = `${completed} of ${total} file${total !== 1 ? 's' : ''}`;
-    if (pct)   pct.textContent  = percent + '%';
+    if (pct)   pct.textContent = percent + '%';
+
+    if (label) {
+      if (total > 0) {
+        label.textContent = `${completed} of ${total} file${total !== 1 ? 's' : ''}`;
+      } else {
+        label.textContent = 'Preparing…';
+      }
+    }
+
+    // Show which file is currently uploading.
+    if (titleEl) {
+      titleEl.textContent = currentFile ? `Uploading: ${currentFile}` : '';
+    }
   }
 
   function updateProgressFiles(jobData) {
@@ -320,11 +340,18 @@
           statusEl.innerHTML = '✓ Done';
           break;
         case 'failed':
-          statusEl.innerHTML = `✗ Failed: ${esc(item.error || 'error')}`;
+          statusEl.innerHTML = `✗ ${esc(item.error || 'Failed')}`;
           break;
-        case 'running':
-          statusEl.innerHTML = '<span class="wpd-mini-spinner"></span> Uploading…';
+        case 'running': {
+          // Show byte-level progress if available.
+          if (item.file_pct !== undefined) {
+            statusEl.innerHTML =
+              `<span class="wpd-mini-spinner"></span> ${item.file_pct}%`;
+          } else {
+            statusEl.innerHTML = '<span class="wpd-mini-spinner"></span> Uploading…';
+          }
           break;
+        }
         default:
           statusEl.textContent = 'Pending';
       }
@@ -332,6 +359,12 @@
   }
 
   function showUploadComplete(data) {
+    // Stop the shimmer animation on the master bar.
+    const masterBar = document.getElementById('wpdMasterBar');
+    if (masterBar) {
+      masterBar.classList.remove('wpd-progress-bar-animated');
+      masterBar.style.width = '100%';
+    }
     if (!pickerBody) return;
 
     const errorCount  = (data.errors || []).length;
