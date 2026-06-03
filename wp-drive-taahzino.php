@@ -3,7 +3,7 @@
  * Plugin Name:       WP Drive
  * Plugin URI:        https://github.com/taahzino/wp-drive-taahzino
  * Description:       Connect your WordPress site to Google Drive. Browse your uploads, select files or folders, and upload them directly to your Drive — with a live progress bar.
- * Version:           1.0.0
+ * Version:           1.1.0
  * Author:            Tahsin Ahmed (@taahzino)
  * Author URI:        https://taahzino.com
  * License:           GPL-2.0-or-later
@@ -16,7 +16,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'WP_DRIVE_VERSION', '1.0.0' );
+define( 'WP_DRIVE_VERSION', '1.1.0' );
 define( 'WP_DRIVE_FILE', __FILE__ );
 define( 'WP_DRIVE_DIR', plugin_dir_path( __FILE__ ) );
 define( 'WP_DRIVE_URL', plugin_dir_url( __FILE__ ) );
@@ -80,6 +80,7 @@ function wp_drive_purge_all_data(): void {
 
 	// Unschedule all plugin cron hooks.
 	wp_clear_scheduled_hook( 'wp_drive_process_job' );
+	wp_clear_scheduled_hook( 'wp_drive_process_download_job' );
 	wp_clear_scheduled_hook( 'wp_drive_upload_cron' );
 
 	flush_rewrite_rules();

@@ -69,6 +69,9 @@ $user_info = $oauth->get_user_info();
       <button type="button" class="wpd-btn wpd-btn-ghost" id="wpdClearSelection" style="display:none;">
         <?php esc_html_e( 'Clear', 'wp-drive-taahzino' ); ?>
       </button>
+      <button type="button" class="wpd-btn wpd-btn-download" id="wpdDownloadFromDrive">
+        &#8595; <?php esc_html_e( 'Download from Drive', 'wp-drive-taahzino' ); ?>
+      </button>
       <button type="button" class="wpd-btn wpd-btn-primary" id="wpdUploadToDrive" disabled>
         &#9729;&#65039; <?php esc_html_e( 'Upload to Drive', 'wp-drive-taahzino' ); ?>
       </button>
@@ -76,6 +79,41 @@ $user_info = $oauth->get_user_info();
   </div>
 
 </div><!-- .wpd-fm-wrap -->
+
+<!-- Drive Downloader modal (owned by drive-downloader.js) -->
+<div id="wpdDownloaderOverlay" style="display:none;position:fixed;inset:0;z-index:100001;background:rgba(15,23,42,.55);backdrop-filter:blur(4px);align-items:center;justify-content:center;" role="dialog" aria-modal="true" aria-label="<?php esc_attr_e( 'Download from Google Drive', 'wp-drive-taahzino' ); ?>">
+  <div id="wpdDownloaderModal" style="background:#fff;border-radius:16px;width:560px;max-width:calc(100vw - 40px);max-height:calc(100vh - 80px);display:flex;flex-direction:column;box-shadow:0 25px 60px rgba(0,0,0,.25);overflow:hidden;">
+
+    <!-- Header -->
+    <div class="wpd-picker-header">
+      <h2 id="wpdDlTitle"><?php esc_html_e( 'Download from Google Drive', 'wp-drive-taahzino' ); ?></h2>
+      <button type="button" class="wpd-picker-close" id="wpdDlClose" aria-label="<?php esc_attr_e( 'Close', 'wp-drive-taahzino' ); ?>">&#x2715;</button>
+    </div>
+
+    <!-- Breadcrumb: Drive path or Local path (toggled by JS) -->
+    <div class="wpd-picker-breadcrumb" id="wpdDlBreadcrumb">
+      <span class="wpd-dl-bc-item is-current">My Drive</span>
+    </div>
+
+    <!-- Body: Drive list / local folder list / progress (replaced by JS) -->
+    <div class="wpd-picker-body" id="wpdDlBody">
+      <div class="wpd-dl-loading">
+        <div class="wpd-spinner"></div>
+        <span><?php esc_html_e( 'Loading Drive…', 'wp-drive-taahzino' ); ?></span>
+      </div>
+    </div>
+
+    <!-- Footer: actions (replaced by JS per view) -->
+    <div class="wpd-picker-footer" id="wpdDlFooter">
+      <div class="wpd-dl-footer-info"><?php esc_html_e( 'Select files or folders to download', 'wp-drive-taahzino' ); ?></div>
+      <div class="wpd-dl-footer-actions">
+        <button type="button" class="wpd-btn wpd-btn-ghost" id="wpdDlCancelBtn"><?php esc_html_e( 'Cancel', 'wp-drive-taahzino' ); ?></button>
+        <button type="button" class="wpd-btn wpd-btn-primary" disabled><?php esc_html_e( 'Choose Destination →', 'wp-drive-taahzino' ); ?></button>
+      </div>
+    </div>
+
+  </div>
+</div>
 
 <!-- Drive picker / upload progress modal (rendered by drive-picker.js) -->
 <div id="wpdPickerOverlay" class="wpd-picker-overlay" style="display:none;" role="dialog" aria-modal="true" aria-label="<?php esc_attr_e( 'Choose Google Drive destination', 'wp-drive-taahzino' ); ?>">

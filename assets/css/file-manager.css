@@ -863,3 +863,221 @@
 .wpd-btn.is-loading .wpd-spinner {
   display: inline-block;
 }
+
+/* ==========================================================================
+   Download Button — green variant in the toolbar
+   ========================================================================== */
+
+.wpd-btn-download {
+  background: #059669;
+  color: #fff;
+  border-color: #059669;
+}
+
+.wpd-btn-download:hover:not(:disabled) {
+  background: #047857;
+  border-color: #047857;
+  color: #fff;
+}
+
+/* ==========================================================================
+   Drive Downloader Modal — shared loading / empty states
+   ========================================================================== */
+
+.wpd-dl-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 48px 24px;
+  color: #64748b;
+  font-size: 14px;
+}
+
+.wpd-dl-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 48px 24px;
+  color: #94a3b8;
+  font-size: 14px;
+}
+
+.wpd-dl-empty-icon {
+  font-size: 40px;
+}
+
+/* ==========================================================================
+   Drive Downloader — Drive browser (select mode)
+   ========================================================================== */
+
+.wpd-dl-drive-list {
+  padding: 8px 0;
+}
+
+.wpd-dl-drive-item {
+  display: grid;
+  grid-template-columns: 36px 28px 1fr auto auto;
+  align-items: center;
+  gap: 0 8px;
+  padding: 10px 16px;
+  cursor: pointer;
+  transition: background .12s;
+  border-bottom: 1px solid #f1f5f9;
+  user-select: none;
+}
+
+.wpd-dl-drive-item:last-child {
+  border-bottom: none;
+}
+
+.wpd-dl-drive-item:hover {
+  background: #f8fafc;
+}
+
+.wpd-dl-drive-item.is-selected {
+  background: #eff6ff;
+}
+
+.wpd-dl-drive-item.is-selected:hover {
+  background: #dbeafe;
+}
+
+.wpd-dl-checkbox {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: #4f46e5;
+}
+
+.wpd-dl-item-icon {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.wpd-dl-item-name {
+  font-size: 13px;
+  color: #1e293b;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wpd-dl-item-size {
+  font-size: 12px;
+  color: #94a3b8;
+  white-space: nowrap;
+}
+
+/* Nav arrow (folder navigate-into) */
+.wpd-dl-item-nav {
+  font-size: 18px;
+  color: #94a3b8;
+  padding: 4px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  line-height: 1;
+  transition: background .12s, color .12s;
+}
+
+.wpd-dl-item-nav:hover {
+  background: #e0e7ff;
+  color: #4f46e5;
+}
+
+/* ==========================================================================
+   Drive Downloader — Local folder picker
+   ========================================================================== */
+
+.wpd-dl-local-list {
+  padding: 8px 0;
+}
+
+.wpd-dl-local-item {
+  display: grid;
+  grid-template-columns: 28px 1fr 24px;
+  align-items: center;
+  gap: 0 10px;
+  padding: 12px 20px;
+  cursor: pointer;
+  transition: background .12s;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.wpd-dl-local-item:last-child {
+  border-bottom: none;
+}
+
+.wpd-dl-local-item:hover {
+  background: #f0fdf4;
+}
+
+/* ==========================================================================
+   Drive Downloader — Breadcrumb (shared between views)
+   ========================================================================== */
+
+.wpd-dl-bc-item {
+  color: #4f46e5;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 3px 6px;
+  border-radius: 4px;
+  white-space: nowrap;
+  transition: background .12s;
+}
+
+.wpd-dl-bc-item:hover {
+  background: #ede9fe;
+}
+
+.wpd-dl-bc-item.is-current {
+  color: #1e293b;
+  cursor: default;
+}
+
+.wpd-dl-bc-item.is-current:hover {
+  background: transparent;
+}
+
+.wpd-dl-bc-sep {
+  color: #94a3b8;
+  font-size: 14px;
+  user-select: none;
+}
+
+/* ==========================================================================
+   Drive Downloader — Footer layouts
+   ========================================================================== */
+
+.wpd-dl-footer-info {
+  font-size: 13px;
+  color: #64748b;
+}
+
+.wpd-dl-footer-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.wpd-dl-footer-dest {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13px;
+  min-width: 0;
+}
+
+.wpd-dl-footer-dest-path {
+  font-weight: 600;
+  color: #1e293b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 240px;
+}

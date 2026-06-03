@@ -4,7 +4,7 @@ Tags: google drive, file manager, upload, cloud storage
 Requires at least: 5.8
 Tested up to: 6.5
 Requires PHP: 7.4
-Stable tag: 1.0.0
+Stable tag: 1.1.0
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -58,6 +58,17 @@ Files up to PHP's `upload_max_filesize` can be uploaded. Files larger than 5 MB 
 Not in v1.0. Only personal Drive is supported.
 
 == Changelog ==
+
+= 1.1.0 =
+* Added Download from Drive feature — browse Google Drive, select files/folders, and download them to any directory in your WordPress filesystem.
+* Live download progress bar with per-file byte-level tracking (same UX as upload).
+* Download from Drive button added to the File Manager toolbar.
+* New background cron processor for downloads (wp_drive_process_download_job).
+* New REST endpoints: POST /drive/download/start and GET /drive/download/{job_id}/status.
+* Incremental upload progress bar — progress now updates smoothly per chunk instead of jumping from 0% to done.
+* Faster polling interval (800 ms) with animated shimmer bar during active transfers.
+* Setup wizard now includes Publish App step with explanation of why it matters.
+* Deactivation now shows a confirmation modal and immediately purges all plugin data.
 
 = 1.0.0 =
 * Initial release.

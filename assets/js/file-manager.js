@@ -341,11 +341,18 @@
     }
 
     // Upload button — opens picker (handled by drive-picker.js).
-    // The picker listens for 'wpd:open-picker' custom event.
     if (uploadBtn) {
       uploadBtn.addEventListener('click', () => {
         const items = window.wpdFileManager.getSelected();
         document.dispatchEvent(new CustomEvent('wpd:open-picker', { detail: { items } }));
+      });
+    }
+
+    // Download button — opens Drive downloader (handled by drive-downloader.js).
+    const downloadBtn = document.getElementById('wpdDownloadFromDrive');
+    if (downloadBtn) {
+      downloadBtn.addEventListener('click', () => {
+        document.dispatchEvent(new CustomEvent('wpd:open-downloader'));
       });
     }
 

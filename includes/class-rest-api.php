@@ -97,6 +97,22 @@ class RestAPI {
 				'job_id' => [ 'required' => true, 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field' ],
 			],
 		] );
+
+		// Download routes.
+		register_rest_route( self::NS, '/drive/download/start', [
+			'methods'             => 'POST',
+			'callback'            => [ $this, 'download_start' ],
+			'permission_callback' => $auth,
+		] );
+
+		register_rest_route( self::NS, '/drive/download/(?P<job_id>[a-f0-9\-]+)/status', [
+			'methods'             => 'GET',
+			'callback'            => [ $this, 'download_status' ],
+			'permission_callback' => $auth,
+			'args'                => [
+				'job_id' => [ 'required' => true, 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field' ],
+			],
+		] );
 	}
 
 	// -------------------------------------------------------------------------
@@ -518,6 +534,209 @@ class RestAPI {
 			'total'        => $total,
 			'completed'    => $completed,
 			'percent'      => min( 99, $percent ), // Never show 100% until status === 'done'.
+			'current_file' => $current_file,
+			'errors'       => $errors,
+			'items'        => $items_summary,
+		];
+	}
+
+	// -------------------------------------------------------------------------
+	// Download handlers
+	// -------------------------------------------------------------------------
+
+	/**
+	 * Initialises a download job from Google Drive to the local filesystem.
+	 *
+	 * Body: {
+	 *   items:            [{drive_id, name, type:'file'|'folder', size?}],
+	 *   destination_path: string  (relative to ABSPATH, e.g. 'wp-content/uploads/from-drive')
+	 * }
+	 */
+	public function download_start( \WP_REST_Request $req ): \WP_REST_Response {
+		$body             = $req->get_json_params();
+		$items            = $body['items'] ?? [];
+		$destination_path = sanitize_text_field( $body['destination_path'] ?? '' );
+
+		if ( empty( $items ) ) {
+			return $this->error( 'no_items', 'No items specified.', 400 );
+		}
+
+		// Resolve and validate destination directory.
+		$base_dir = rtrim( $this->files->get_base_dir(), '/\\' );
+		$rel_norm = ltrim( str_replace( '/', DIRECTORY_SEPARATOR, $destination_path ), '/\\' . DIRECTORY_SEPARATOR );
+		$dest_abs = $rel_norm !== '' ? $base_dir . DIRECTORY_SEPARATOR . $rel_norm : $base_dir;
+
+		// Guard against path traversal.
+		$real_dest = realpath( $dest_abs );
+		if ( $real_dest !== false && strpos( $real_dest, $base_dir ) !== 0 ) {
+			return $this->error( 'invalid_path', 'Destination path is outside the WordPress root.', 403 );
+		}
+
+		if ( ! wp_mkdir_p( $dest_abs ) || ! is_writable( $dest_abs ) ) {
+			return $this->error( 'not_writable', 'Destination directory is not writable. Check file permissions.', 400 );
+		}
+
+		$job_items = [];
+
+		foreach ( $items as $raw ) {
+			$drive_id = sanitize_text_field( $raw['drive_id'] ?? '' );
+			$name     = sanitize_file_name( $raw['name'] ?? '' );
+			$type     = sanitize_text_field( $raw['type']     ?? 'file' );
+
+			if ( empty( $drive_id ) || empty( $name ) ) {
+				continue;
+			}
+
+			if ( 'folder' === $type ) {
+				// Add a create_dir entry for the top-level selected folder.
+				$folder_abs = $dest_abs . DIRECTORY_SEPARATOR . $name;
+				$job_items[] = [
+					'type'     => 'create_dir',
+					'drive_id' => $drive_id,
+					'name'     => $name,
+					'rel'      => $name,
+					'abs'      => $folder_abs,
+					'status'   => 'pending',
+					'error'    => null,
+				];
+
+				// Expand all descendants.
+				try {
+					$children = $this->drive->list_folder_recursive( $drive_id, $name );
+					foreach ( $children as $child ) {
+						$child_abs = $dest_abs . DIRECTORY_SEPARATOR . str_replace( '/', DIRECTORY_SEPARATOR, $child['rel_path'] );
+						if ( 'folder' === $child['type'] ) {
+							$job_items[] = [
+								'type'     => 'create_dir',
+								'drive_id' => $child['drive_id'],
+								'name'     => $child['name'],
+								'rel'      => $child['rel_path'],
+								'abs'      => $child_abs,
+								'status'   => 'pending',
+								'error'    => null,
+							];
+						} else {
+							$job_items[] = [
+								'type'           => 'file',
+								'drive_id'       => $child['drive_id'],
+								'name'           => $child['name'],
+								'rel'            => $child['rel_path'],
+								'abs'            => $child_abs,
+								'status'         => 'pending',
+								'bytes_received' => 0,
+								'total_bytes'    => $child['size'],
+								'error'          => null,
+							];
+						}
+					}
+				} catch ( \Exception $e ) {
+					error_log( 'WP Drive: failed to expand Drive folder [' . $name . ']: ' . $e->getMessage() );
+				}
+			} else {
+				// Plain file.
+				$job_items[] = [
+					'type'           => 'file',
+					'drive_id'       => $drive_id,
+					'name'           => $name,
+					'rel'            => $name,
+					'abs'            => $dest_abs . DIRECTORY_SEPARATOR . $name,
+					'status'         => 'pending',
+					'bytes_received' => 0,
+					'total_bytes'    => (int) ( $raw['size'] ?? 0 ),
+					'error'          => null,
+				];
+			}
+		}
+
+		if ( empty( $job_items ) ) {
+			return $this->error( 'no_valid_items', 'No valid items to download.', 400 );
+		}
+
+		$job_id = wp_generate_uuid4();
+		$job    = [
+			'job_id'           => $job_id,
+			'job_type'         => 'download',
+			'destination_path' => $destination_path,
+			'items'            => $job_items,
+			'total'            => count( array_filter( $job_items, fn( $i ) => $i['type'] === 'file' ) ),
+			'completed'        => 0,
+			'status'           => 'pending',
+			'created_at'       => time(),
+		];
+
+		set_transient( 'wp_drive_download_job_' . $job_id, $job, HOUR_IN_SECONDS );
+
+		wp_schedule_single_event( time() - 1, 'wp_drive_process_download_job', [ $job_id ] );
+		spawn_cron();
+
+		return new \WP_REST_Response( [
+			'job_id' => $job_id,
+			'total'  => $job['total'],
+			'status' => 'pending',
+		] );
+	}
+
+	/**
+	 * Returns the current status of a download job.
+	 */
+	public function download_status( \WP_REST_Request $req ): \WP_REST_Response {
+		$job_id = $req->get_param( 'job_id' );
+		$job    = get_transient( 'wp_drive_download_job_' . $job_id );
+
+		if ( ! $job ) {
+			return $this->error( 'job_not_found', 'Download job not found or expired.', 404 );
+		}
+
+		return new \WP_REST_Response( $this->download_job_summary( $job ) );
+	}
+
+	private function download_job_summary( array $job ): array {
+		$errors = array_values( array_filter(
+			array_map( fn( $i ) => ! empty( $i['error'] ) ? [ 'name' => $i['name'], 'error' => $i['error'] ] : null, $job['items'] )
+		) );
+
+		$items_summary = array_values( array_map( static function ( array $i ): array {
+			$entry = [
+				'type'   => $i['type'],
+				'name'   => $i['name'],
+				'status' => $i['status'],
+				'error'  => $i['error'] ?? null,
+			];
+			if ( 'file' === $i['type'] && isset( $i['bytes_received'], $i['total_bytes'] ) && $i['total_bytes'] > 0 ) {
+				$entry['bytes_received'] = (int) $i['bytes_received'];
+				$entry['total_bytes']    = (int) $i['total_bytes'];
+				$entry['file_pct']       = (int) round( ( $i['bytes_received'] / $i['total_bytes'] ) * 100 );
+			}
+			return $entry;
+		}, $job['items'] ) );
+
+		$total            = (int) $job['total'];
+		$completed        = (int) $job['completed'];
+		$current_fraction = 0.0;
+		$current_file     = null;
+
+		foreach ( $job['items'] as $i ) {
+			if ( 'file' !== $i['type'] || 'running' !== $i['status'] ) {
+				continue;
+			}
+			$current_file = $i['name'];
+			if ( isset( $i['bytes_received'], $i['total_bytes'] ) && $i['total_bytes'] > 0 ) {
+				$current_fraction = (float) $i['bytes_received'] / (float) $i['total_bytes'];
+			}
+			break;
+		}
+
+		$percent = $total > 0
+			? (int) round( ( ( $completed + $current_fraction ) / $total ) * 100 )
+			: 0;
+
+		return [
+			'job_id'       => $job['job_id'],
+			'job_type'     => 'download',
+			'status'       => $job['status'],
+			'total'        => $total,
+			'completed'    => $completed,
+			'percent'      => min( 99, $percent ),
 			'current_file' => $current_file,
 			'errors'       => $errors,
 			'items'        => $items_summary,

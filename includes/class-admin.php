@@ -111,6 +111,13 @@ class Admin {
 				$ver,
 				true
 			);
+			wp_enqueue_script(
+				'wp-drive-downloader',
+				WP_DRIVE_URL . 'assets/js/drive-downloader.js',
+				[ 'wp-drive-file-manager' ],
+				$ver,
+				true
+			);
 			wp_localize_script( 'wp-drive-file-manager', 'wpDrive', $this->js_data() );
 		}
 	}

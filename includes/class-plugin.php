@@ -25,6 +25,9 @@ class Plugin {
 
 		// Background upload processor (WP-Cron).
 		add_action( 'wp_drive_process_job', [ DriveAPI::class, 'run_job_cron' ] );
+
+		// Background download processor (WP-Cron).
+		add_action( 'wp_drive_process_download_job', [ DriveAPI::class, 'run_download_job_cron' ] );
 	}
 
 	public static function get_instance(): self {
